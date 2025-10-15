@@ -17,6 +17,23 @@
 #include QMK_KEYBOARD_H
 #include "muse.h"
 
+#if defined(RGBLIGHT_ENABLE)
+// Custom RGB
+static bool           mv_enabled   = true; // MV UG Enabled
+static bool           mv_to_blue   = true;
+static const uint8_t  mv_h_pink    = 213;   // HSV_PINK hue
+static const uint8_t  mv_h_blue    = 170;   // HSV_BLUE hue
+static uint8_t        mv_h_current = mv_h_pink;
+static uint16_t       mv_last_tick = 0;
+
+// Tuning
+#define MV_INTERVAL_MS 20   // smaller = faster
+#define MV_SAT         255
+#define MV_VAL         180
+// Uncomment to animate only on base layer (_QWERTY) and show white elsewhere
+// #define MV_ONLY_ON_BASE
+#endif
+
 enum preonic_layers {
   _QWERTY,
   _LOWER,
@@ -27,7 +44,8 @@ enum preonic_layers {
 enum preonic_keycodes {
   LOWER = SAFE_RANGE,
   RAISE,
-  BACKLIT
+  BACKLIT,
+  UG_RES
 };
 
 #define QWERTY PDF(_QWERTY)
@@ -36,7 +54,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 /* Qwerty Modified
  * ,-----------------------------------------------------------------------------------.
- * | Esc  |   1  |   2  |   3  |   4  |   5  |   6  |   7  |   8  |   9  |   0  | "    |
+ * | Esc  |   1  |   2  |   3  |   4  |   5  |   6  |   7  |   8  |   9  |   0  |  \   |
  * |------+------+------+------+------+------+------+------+------+------+------+------|
  * |  `   |   Q  |   W  |   E  |   R  |   T  |   Y  |   U  |   I  |   O  |   P  |Enter |
  * |------+------+------+------+------+-------------+------+------+------+------+------|
@@ -48,7 +66,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * `-----------------------------------------------------------------------------------'
  */
 [_QWERTY] = LAYOUT_preonic_grid( \
-  KC_ESC,  KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_QUOT, \
+  KC_ESC,  KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_BSLS, \
   KC_GRV,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_ENT,  \
   KC_LSFT, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_BSPC, \
   KC_TAB,  KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_UP,   KC_DEL,  \
@@ -63,7 +81,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * |------+------+------+------+------+-------------+------+------+------+------+------|
  * |      |   :  |   '  |  (   |  {   |  ,   |  .   |   }  |   )  |   "  |   ;  |      |
  * |------+------+------+------+------+------|------+------+------+------+------+------|
- * |      |      |      |      |      |      |      |      |      |      |   \  |      |
+ * |      |      |      |  <   |  [   |      |      |   ]  |   >  |      |   \  |      |
  * |------+------+------+------+------+------+------+------+------+------+------+------|
  * |      |      |      |      |      |             |      |      |      |      |      |
  * `-----------------------------------------------------------------------------------'
@@ -72,7 +90,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,   KC_F10,     KC_F11,  KC_F12, \
   KC_TILD, KC_EXLM, KC_AT,   KC_HASH, KC_DLR,  KC_PERC, KC_CIRC, KC_AMPR, KC_ASTR, KC_MINS,    KC_EQL,  _______,  \
   _______, KC_COLN, KC_QUOT, KC_LPRN, KC_LCBR, KC_COMM, KC_DOT,  KC_RCBR, KC_RPRN, S(KC_QUOT), KC_SCLN, _______, \
-  _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,    KC_BSLS, _______, \
+  _______, _______, _______, KC_LT  , KC_LBRC, _______, _______, KC_RBRC, KC_GT  , _______,    KC_BSLS, _______, \
   _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,    _______, _______ \
 ),
 
@@ -101,25 +119,35 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * ,-----------------------------------------------------------------------------------.
  * |  F1  |  F2  |  F3  |  F4  |  F5  |  F6  |  F7  |  F8  |  F9  |  F10 |  F11 |  F12 |
  * |------+------+------+------+------+------+------+------+------+------+------+------|
- * |      | Home |      | End  |      |      |      |      |      |      |      |  Del |
+ * |      | PgUp |      |PgDown|      |      |      |      |      |      |      |  Del |
  * |------+------+------+------+------+-------------+------+------+------+------+------|
- * |      | PgUp |      |PgDown|      |      | Left | Down | Up   | Right|      |      |
+ * |      | Home |      | End  |      |      | Left | Down | Up   | Right|      |      |
  * |------+------+------+------+------+------|------+------+------+------+------+------|
  * |      |      |      |      |      |      |      |      |      |      |      |      |
  * |------+------+------+------+------+------+------+------+------+------+------+------|
- * |      |      |      |      |      |             |      |      |      |      |      |
+ * |RGBTOG|RGBMOD|UG_RES|      |      |             |      |      |      |      |      |
  * `-----------------------------------------------------------------------------------'
  */
 [_ADJUST] = LAYOUT_preonic_grid( \
   KC_F1  , KC_F2  , KC_F3  , KC_F4  , KC_F5  , KC_F6  , KC_F7  , KC_F8  , KC_F9  , KC_F10 , KC_F11 , KC_F12 ,  \
-  _______, KC_HOME, _______, KC_END , _______, _______, _______, _______, _______, _______, _______, KC_DEL ,  \
-  _______, KC_PGUP, _______, KC_PGDN, _______, _______, KC_LEFT, KC_DOWN,  KC_UP, KC_RIGHT, _______, _______, \
+  _______, KC_PGUP, _______, KC_PGDN, _______, _______, _______, _______, _______, _______, _______, KC_DEL ,  \
+  _______, KC_HOME, _______, KC_END , _______, _______, KC_LEFT, KC_DOWN,  KC_UP, KC_RIGHT, _______, _______, \
   _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, \
-  _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______  \
+  UG_TOGG, UG_NEXT, UG_RES, _______, _______, _______, _______, _______, _______, _______, _______, _______  \
 )
 
 
 };
+
+void keyboard_post_init_user(void) {
+#if defined(RGBLIGHT_ENABLE)
+    // Start with custom UG
+    rgblight_enable_noeeprom();
+    rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+    rgblight_sethsv_noeeprom(mv_h_current, 255, 180);
+    mv_enabled = true;
+#endif
+}
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   switch (keycode) {
@@ -162,6 +190,23 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             #endif
           }
           return false;
+          break;
+        case UG_RES:
+          if(record->event.pressed) {
+            mv_enabled = true;
+            rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+            rgblight_enable_noeeprom();
+            mv_h_current = mv_h_pink;
+            mv_to_blue = true;
+            rgblight_sethsv_noeeprom(mv_h_current, 255, 180);
+          }
+          return false;
+          break;
+        case UG_NEXT:
+          if (record->event.pressed) {
+            mv_enabled = false;
+          }
+          return true;
           break;
       }
     return true;
@@ -237,6 +282,34 @@ void matrix_scan_user(void) {
             stop_all_notes();
             muse_counter = 0;
         }
+    }
+#endif
+
+#if defined(RGBLIGHT_ENABLE)
+    if (!mv_enabled) return;
+    if (rgblight_get_mode() != RGBLIGHT_MODE_STATIC_LIGHT) return;
+#ifdef MV_ONLY_ON_BASE
+    bool on_base = (get_highest_layer(layer_state) == _QWERTY);
+    if (!on_base) {
+        rgblight_sethsv_noeeprom(0, 0, MV_VAL); // static white off-base
+        return;
+    }
+#endif
+
+    if (timer_elapsed(mv_last_tick) >= MV_INTERVAL_MS) {
+        mv_last_tick = timer_read();
+
+        if (mv_to_blue) {
+            if (mv_h_current > mv_h_blue) mv_h_current--;
+        } else {
+            if (mv_h_current < mv_h_pink) mv_h_current++;
+        }
+
+        // flip at endpoints
+        if (mv_h_current <= mv_h_blue) mv_to_blue = false;
+        if (mv_h_current >= mv_h_pink) mv_to_blue = true;
+
+        rgblight_sethsv_noeeprom(mv_h_current, MV_SAT, MV_VAL);
     }
 #endif
 }
